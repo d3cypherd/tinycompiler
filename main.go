@@ -72,19 +72,19 @@ func getTokenType(c string) string {
 func main() {
 	// Example: ./main code.txt
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: ./main <filename>")
+		fmt.Println("Usage: ./main <input-filename> <output-filename>")
 		return
 	}
 
-	file, err := os.Open(os.Args[1])
+	inputFile, err := os.Open(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
+	defer inputFile.Close()
 
 	var tokens []Token
 
-	r := bufio.NewReader(file)
+	r := bufio.NewReader(inputFile)
 	char, err := r.ReadByte()
 	if err != nil {
 		panic(err)
@@ -161,7 +161,23 @@ func main() {
 			return
 		}
 	}
+
+	// Write output to file
+	outputFile, err := os.Create(os.Args[2])
+	if err != nil {
+		panic(err)
+	}
+	defer outputFile.Close()
+
+	c := bufio.NewWriter(outputFile)
+
 	for _, token := range tokens {
+		_, err := c.WriteString(fmt.Sprintf("%v, %v\n", token.TokenValue, token.TokenType))
+		if err != nil {
+			panic(err)
+		}
 		fmt.Printf("%v, %v\n", token.TokenValue, token.TokenType)
 	}
+	// Write buffer to file
+	c.Flush()
 }
