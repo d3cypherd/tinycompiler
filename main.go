@@ -12,6 +12,63 @@ type Token struct {
 	TokenType  string
 }
 
+func isWhitespace(c byte) bool {
+	return c == ' ' || c == '\n'
+}
+
+func isSingleOperator(c byte) bool {
+	return c == ';' || c == '<' || c == '>' || c == '(' || c == ')' || c == '+' || c == '-' || c == '*' || c == '/' || c == '='
+}
+
+func isAlphabet(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+}
+
+func isNumber(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
+func getTokenType(c string) string {
+	switch c {
+	case ";":
+		return "SEMICOLON"
+	case "<":
+		return "LESSTHAN"
+	case ">":
+		return "GREATERTHAN"
+	case "(":
+		return "OPENBRACKET"
+	case ")":
+		return "CLOSEDBRACKET"
+	case "+":
+		return "PLUS"
+	case "-":
+		return "MINUS"
+	case "*":
+		return "MULT"
+	case "/":
+		return "DIV"
+	case "=":
+		return "EQUAL"
+	case "if":
+		return "IF"
+	case "then":
+		return "THEN"
+	case "end":
+		return "END"
+	case "repeat":
+		return "REPEAT"
+	case "until":
+		return "UNTIL"
+	case "read":
+		return "READ"
+	case "write":
+		return "WRITE"
+	default:
+		return "IDENTIFIER"
+	}
+}
+
 func main() {
 	// Example: ./main code.txt
 	if len(os.Args) < 2 {
@@ -41,7 +98,7 @@ func main() {
 			panic(err)
 		}
 		switch {
-		case char == ' ' || char == '\n':
+		case isWhitespace(char):
 			char, err = r.ReadByte()
 			continue
 
@@ -58,40 +115,8 @@ func main() {
 			// Read next character after '}'
 			char, err = r.ReadByte()
 
-		case char == ';':
-			tokens = append(tokens, Token{";", "SEMICOLON"})
-			char, err = r.ReadByte()
-
-		case char == '<':
-			tokens = append(tokens, Token{"<", "LESSTHAN"})
-			char, err = r.ReadByte()
-
-		case char == '>':
-			tokens = append(tokens, Token{">", "GREATERTHAN"})
-			char, err = r.ReadByte()
-
-		case char == '(':
-			tokens = append(tokens, Token{"(", "OPENBRACKET"})
-			char, err = r.ReadByte()
-
-		case char == ')':
-			tokens = append(tokens, Token{")", "CLOSEDBRACKET"})
-			char, err = r.ReadByte()
-
-		case char == '+':
-			tokens = append(tokens, Token{"+", "PLUS"})
-			char, err = r.ReadByte()
-
-		case char == '-':
-			tokens = append(tokens, Token{"-", "MINUS"})
-			char, err = r.ReadByte()
-
-		case char == '*':
-			tokens = append(tokens, Token{"*", "MULT"})
-			char, err = r.ReadByte()
-
-		case char == '/':
-			tokens = append(tokens, Token{"/", "DIV"})
+		case isSingleOperator(char):
+			tokens = append(tokens, Token{string(char), getTokenType(string(char))})
 			char, err = r.ReadByte()
 
 		case char == ':':
@@ -107,25 +132,20 @@ func main() {
 				return
 			}
 
-		case char == '=':
-			tokens = append(tokens, Token{string("="), "EQUAL"})
-			char, err = r.ReadByte()
-
-		case char >= '0' && char <= '9':
+		case isNumber(char):
 			var number []byte
-			for char >= '0' && char <= '9' {
+			for isNumber(char) {
 				number = append(number, char)
 				char, err = r.ReadByte()
 				if err != nil {
 					panic(err)
 				}
 			}
-			// TODO: store token in tokens struct {number, TokenType::NUMBER}
 			tokens = append(tokens, Token{string(number), "NUMBER"})
 
-		case (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z'):
+		case isAlphabet(char):
 			var identifier []byte
-			for (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') {
+			for isAlphabet(char) {
 				identifier = append(identifier, char)
 				// Next character
 				char, err = r.ReadByte()
@@ -133,25 +153,9 @@ func main() {
 					panic(err)
 				}
 			}
-			// reserved words
-			switch string(identifier) {
-			case "if":
-				tokens = append(tokens, Token{"if", "IF"})
-			case "then":
-				tokens = append(tokens, Token{"then", "THEN"})
-			case "end":
-				tokens = append(tokens, Token{"end", "END"})
-			case "repeat":
-				tokens = append(tokens, Token{"repeat", "REPEAT"})
-			case "until":
-				tokens = append(tokens, Token{"until", "UNTIL"})
-			case "read":
-				tokens = append(tokens, Token{"read", "READ"})
-			case "write":
-				tokens = append(tokens, Token{"write", "WRITE"})
-			default:
-				tokens = append(tokens, Token{string(identifier), "IDENTIFIER"})
-			}
+			// reserved words or identifier
+			tokens = append(tokens, Token{string(identifier), getTokenType(string(identifier))})
+
 		default:
 			fmt.Println("compilation error: undefined character entered")
 			return
