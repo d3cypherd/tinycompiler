@@ -7,24 +7,95 @@ import (
 	"os"
 )
 
+// TokenType represents different types of tokens using an enum
+type TokenType int
+
+// Token type constants defined as enum values
+const (
+	// Special tokens
+	ERROR TokenType = iota // Using 0 as ERROR helps detect uninitialized tokens
+	EOF
+
+	// Reserved words
+	IF
+	THEN
+	ELSE
+	END
+	REPEAT
+	UNTIL
+	READ
+	WRITE
+
+	// Special symbols
+	SEMICOLON     // ;
+	LESSTHAN      // <
+	GREATERTHAN   // >
+	OPENBRACKET   // (
+	CLOSEDBRACKET // )
+	PLUS          // +
+	MINUS         // -
+	MULT          // *
+	DIV           // /
+	EQUAL         // =
+	ASSIGN        // :=
+
+	// Multi-character tokens
+	NUMBER
+	IDENTIFIER
+)
+
+// Token struct now uses the enum type
 type Token struct {
-	TokenValue string
-	TokenType  string
+	Value   string
+	Type    TokenType
+	LineNum int // Added for better error reporting
+	CharNum int
 }
 
+// Scanner struct remains similar but with better organization
 type Scanner struct {
 	r       bufio.Reader
 	tokens  []Token
-	charNum int
-	lineNum int
+	CharNum int
+	LineNum int
 }
 
+// String method for TokenType provides readable token types for debugging
+func (t TokenType) String() string {
+	return [...]string{
+		"ERROR",
+		"EOF",
+		"IF",
+		"THEN",
+		"END",
+		"REPEAT",
+		"UNTIL",
+		"READ",
+		"WRITE",
+		"SEMICOLON",
+		"LESSTHAN",
+		"GREATERTHAN",
+		"OPENBRACKET",
+		"CLOSEDBRACKET",
+		"PLUS",
+		"MINUS",
+		"MULT",
+		"DIV",
+		"EQUAL",
+		"ASSIGN",
+		"NUMBER",
+		"IDENTIFIER",
+	}[t]
+}
+
+// Helper functions remain the same
 func isWhitespace(c byte) bool {
 	return c == ' ' || c == '\n'
 }
 
 func isSingleOperator(c byte) bool {
-	return c == ';' || c == '<' || c == '>' || c == '(' || c == ')' || c == '+' || c == '-' || c == '*' || c == '/' || c == '='
+	return c == ';' || c == '<' || c == '>' || c == '(' || c == ')' ||
+		c == '+' || c == '-' || c == '*' || c == '/' || c == '='
 }
 
 func isAlphabet(c byte) bool {
@@ -35,52 +106,51 @@ func isNumber(c byte) bool {
 	return c >= '0' && c <= '9'
 }
 
-func getTokenType(c string) string {
-	switch c {
-	case ";":
-		return "SEMICOLON"
-	case "<":
-		return "LESSTHAN"
-	case ">":
-		return "GREATERTHAN"
-	case "(":
-		return "OPENBRACKET"
-	case ")":
-		return "CLOSEDBRACKET"
-	case "+":
-		return "PLUS"
-	case "-":
-		return "MINUS"
-	case "*":
-		return "MULT"
-	case "/":
-		return "DIV"
-	case "=":
-		return "EQUAL"
-	case "if":
-		return "IF"
-	case "then":
-		return "THEN"
-	case "end":
-		return "END"
-	case "repeat":
-		return "REPEAT"
-	case "until":
-		return "UNTIL"
-	case "read":
-		return "READ"
-	case "write":
-		return "WRITE"
-	default:
-		return "IDENTIFIER"
+// getTokenType now returns TokenType instead of string
+func getTokenType(c string) TokenType {
+	// Map of reserved words to their token types
+	reservedWords := map[string]TokenType{
+		"if":     IF,
+		"then":   THEN,
+		"end":    END,
+		"repeat": REPEAT,
+		"until":  UNTIL,
+		"read":   READ,
+		"write":  WRITE,
 	}
+
+	// First check if it's a reserved word
+	if tokenType, ok := reservedWords[c]; ok {
+		return tokenType
+	}
+
+	// Then check single operators
+	singleOperators := map[string]TokenType{
+		";": SEMICOLON,
+		"<": LESSTHAN,
+		">": GREATERTHAN,
+		"(": OPENBRACKET,
+		")": CLOSEDBRACKET,
+		"+": PLUS,
+		"-": MINUS,
+		"*": MULT,
+		"/": DIV,
+		"=": EQUAL,
+	}
+
+	if tokenType, ok := singleOperators[c]; ok {
+		return tokenType
+	}
+
+	// Default case
+	return IDENTIFIER
 }
 
 func newScanner(reader bufio.Reader) *Scanner {
 	return &Scanner{
 		r:       reader,
-		charNum: 0,
-		lineNum: 1,
+		CharNum: 0,
+		LineNum: 1,
 	}
 }
 
@@ -88,27 +158,40 @@ func (s *Scanner) Read() (byte, error) {
 	char, err := s.r.ReadByte()
 
 	if char == '\n' {
-		s.charNum = 1
-		s.lineNum++
+		s.CharNum = 1
+		s.LineNum++
 	}
 
-	s.charNum++
+	s.CharNum++
 	return char, err
+}
+
+func (s *Scanner) addToken(value string, tokenType TokenType) {
+	s.tokens = append(s.tokens, Token{
+		Value:   value,
+		Type:    tokenType,
+		LineNum: s.LineNum,
+		CharNum: s.CharNum,
+	})
 }
 
 func (s *Scanner) Scan() bool {
 	char, err := s.Read()
 	if err != nil {
+		if err == io.EOF {
+			return true
+		}
 		panic(err)
 	}
 
 	for {
 		if err != nil {
 			if err == io.EOF {
-				break // Exit the loop when the end of the file is reached
+				break
 			}
 			panic(err)
 		}
+
 		switch {
 		case isWhitespace(char):
 			char, err = s.Read()
@@ -119,16 +202,15 @@ func (s *Scanner) Scan() bool {
 				char, err = s.Read()
 				if err != nil {
 					if err == io.EOF {
-						panic(fmt.Sprintf("%d:%d: unmatched '{'", s.lineNum, s.charNum))
+						return s.error(fmt.Sprintf("unmatched '{'"))
 					}
 					panic(err)
 				}
 			}
-			// Read next character after '}'
 			char, err = s.Read()
 
 		case isSingleOperator(char):
-			s.tokens = append(s.tokens, Token{string(char), getTokenType(string(char))})
+			s.addToken(string(char), getTokenType(string(char)))
 			char, err = s.Read()
 
 		case char == ':':
@@ -137,11 +219,10 @@ func (s *Scanner) Scan() bool {
 				panic(err)
 			}
 			if char == '=' {
-				s.tokens = append(s.tokens, Token{":=", "ASSIGN"})
+				s.addToken(":=", ASSIGN)
 				char, err = s.Read()
 			} else {
-				fmt.Printf("%d:%dcompilation error (ASSIGN): ':' not followed by '='.\n", s.lineNum, s.charNum)
-				return false
+				return s.error("':' not followed by '='")
 			}
 
 		case isNumber(char):
@@ -149,36 +230,37 @@ func (s *Scanner) Scan() bool {
 			for isNumber(char) {
 				number = append(number, char)
 				char, err = s.Read()
-				if err != nil {
+				if err != nil && err != io.EOF {
 					panic(err)
 				}
 			}
-			s.tokens = append(s.tokens, Token{string(number), "NUMBER"})
+			s.addToken(string(number), NUMBER)
 
 		case isAlphabet(char):
 			var identifier []byte
 			for isAlphabet(char) {
 				identifier = append(identifier, char)
-				// Next character
 				char, err = s.Read()
-				if err != nil {
+				if err != nil && err != io.EOF {
 					panic(err)
 				}
 			}
-			// reserved words or identifier
-			s.tokens = append(s.tokens, Token{string(identifier), getTokenType(string(identifier))})
+			word := string(identifier)
+			s.addToken(word, getTokenType(word))
 
 		default:
-			// fmt.Println(s.lineNum, ":", s.charNum, "compilation error: undefined character entered")
-			fmt.Printf("%d:%d compilation error: undefined character entered.\n", s.lineNum, s.charNum)
-			return false
+			return s.error("undefined character entered")
 		}
 	}
 	return true
 }
 
+func (s *Scanner) error(msg string) bool {
+	fmt.Printf("[%d:%d] compilation error: %s\n", s.LineNum, s.CharNum, msg)
+	return false
+}
+
 func main() {
-	// Example: ./main code.txt
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: ./main <input-filename> <output-filename>")
 		return
@@ -190,34 +272,46 @@ func main() {
 	}
 	defer inputFile.Close()
 
-	var tokens []Token
-
-	// Create Scanner Object
 	s := newScanner(*bufio.NewReader(inputFile))
 
-	// Start scanning
-	if s.Scan() {
-		tokens = s.tokens
-	} else {
+	if !s.Scan() {
 		fmt.Println("Scanning Failed.")
+		return
 	}
 
-	// Write output to file
-	outputFile, err := os.Create(os.Args[2])
-	if err != nil {
-		panic(err)
-	}
-	defer outputFile.Close()
+	tokens := s.tokens
 
-	c := bufio.NewWriter(outputFile)
+	// Create and use the parser
+	parser := NewParser(tokens)
+	tree, errors := parser.Parse()
 
-	for _, token := range tokens {
-		_, err := c.WriteString(fmt.Sprintf("%v, %v\n", token.TokenValue, token.TokenType))
-		if err != nil {
-			panic(err)
+	// Check for errors
+	if len(errors) > 0 {
+		// Handle errors
+		for _, err := range errors {
+			fmt.Println(err)
 		}
-		fmt.Printf("%v, %v\n", token.TokenValue, token.TokenType)
+	} else {
+		// Process the syntax tree
+		fmt.Println("Syntax tree created successfully")
+		PrintSyntaxTree(tree, 0)
 	}
-	// Write buffer to file
-	c.Flush()
+
+	// outputFile, err := os.Create(os.Args[2])
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer outputFile.Close()
+	//
+	// writer := bufio.NewWriter(outputFile)
+	//
+	// for _, token := range s.tokens {
+	// 	output := fmt.Sprintf("%v, %v\n", token.Value, token.Type)
+	// 	if _, err := writer.WriteString(output); err != nil {
+	// 		panic(err)
+	// 	}
+	// 	fmt.Print(output)
+	// }
+	//
+	// writer.Flush()
 }
