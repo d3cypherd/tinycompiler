@@ -12,6 +12,13 @@ type Token struct {
 	TokenType  string
 }
 
+type Scanner struct {
+	r       bufio.Reader
+	tokens  []Token
+	charNum int
+	lineNum int
+}
+
 func isWhitespace(c byte) bool {
 	return c == ' ' || c == '\n'
 }
@@ -69,6 +76,107 @@ func getTokenType(c string) string {
 	}
 }
 
+func newScanner(reader bufio.Reader) *Scanner {
+	return &Scanner{
+		r:       reader,
+		charNum: 0,
+		lineNum: 1,
+	}
+}
+
+func (s *Scanner) Read() (byte, error) {
+	char, err := s.r.ReadByte()
+
+	if char == '\n' {
+		s.charNum = 1
+		s.lineNum++
+	}
+
+	s.charNum++
+	return char, err
+}
+
+func (s *Scanner) Scan() bool {
+	char, err := s.Read()
+	if err != nil {
+		panic(err)
+	}
+
+	for {
+		if err != nil {
+			if err == io.EOF {
+				break // Exit the loop when the end of the file is reached
+			}
+			panic(err)
+		}
+		switch {
+		case isWhitespace(char):
+			char, err = s.Read()
+			continue
+
+		case char == '{':
+			for char != '}' {
+				char, err = s.Read()
+				if err != nil {
+					if err == io.EOF {
+						panic(fmt.Sprintf("%d:%d: unmatched '{'", s.lineNum, s.charNum))
+					}
+					panic(err)
+				}
+			}
+			// Read next character after '}'
+			char, err = s.Read()
+
+		case isSingleOperator(char):
+			s.tokens = append(s.tokens, Token{string(char), getTokenType(string(char))})
+			char, err = s.Read()
+
+		case char == ':':
+			char, err = s.Read()
+			if err != nil {
+				panic(err)
+			}
+			if char == '=' {
+				s.tokens = append(s.tokens, Token{":=", "ASSIGN"})
+				char, err = s.Read()
+			} else {
+				fmt.Printf("%d:%dcompilation error (ASSIGN): ':' not followed by '='.\n", s.lineNum, s.charNum)
+				return false
+			}
+
+		case isNumber(char):
+			var number []byte
+			for isNumber(char) {
+				number = append(number, char)
+				char, err = s.Read()
+				if err != nil {
+					panic(err)
+				}
+			}
+			s.tokens = append(s.tokens, Token{string(number), "NUMBER"})
+
+		case isAlphabet(char):
+			var identifier []byte
+			for isAlphabet(char) {
+				identifier = append(identifier, char)
+				// Next character
+				char, err = s.Read()
+				if err != nil {
+					panic(err)
+				}
+			}
+			// reserved words or identifier
+			s.tokens = append(s.tokens, Token{string(identifier), getTokenType(string(identifier))})
+
+		default:
+			// fmt.Println(s.lineNum, ":", s.charNum, "compilation error: undefined character entered")
+			fmt.Printf("%d:%d compilation error: undefined character entered.\n", s.lineNum, s.charNum)
+			return false
+		}
+	}
+	return true
+}
+
 func main() {
 	// Example: ./main code.txt
 	if len(os.Args) < 2 {
@@ -84,82 +192,14 @@ func main() {
 
 	var tokens []Token
 
-	r := bufio.NewReader(inputFile)
-	char, err := r.ReadByte()
-	if err != nil {
-		panic(err)
-	}
+	// Create Scanner Object
+	s := newScanner(*bufio.NewReader(inputFile))
 
-	for {
-		if err != nil {
-			if err == io.EOF {
-				break // Exit the loop when the end of the file is reached
-			}
-			panic(err)
-		}
-		switch {
-		case isWhitespace(char):
-			char, err = r.ReadByte()
-			continue
-
-		case char == '{':
-			for char != '}' {
-				char, err = r.ReadByte()
-				if err != nil {
-					if err == io.EOF {
-						panic("unmatched '{'")
-					}
-					panic(err)
-				}
-			}
-			// Read next character after '}'
-			char, err = r.ReadByte()
-
-		case isSingleOperator(char):
-			tokens = append(tokens, Token{string(char), getTokenType(string(char))})
-			char, err = r.ReadByte()
-
-		case char == ':':
-			char, err = r.ReadByte()
-			if err != nil {
-				panic(err)
-			}
-			if char == '=' {
-				tokens = append(tokens, Token{":=", "ASSIGN"})
-				char, err = r.ReadByte()
-			} else {
-				fmt.Println("compilation error (ASSIGN): ':' not followed by '='.")
-				return
-			}
-
-		case isNumber(char):
-			var number []byte
-			for isNumber(char) {
-				number = append(number, char)
-				char, err = r.ReadByte()
-				if err != nil {
-					panic(err)
-				}
-			}
-			tokens = append(tokens, Token{string(number), "NUMBER"})
-
-		case isAlphabet(char):
-			var identifier []byte
-			for isAlphabet(char) {
-				identifier = append(identifier, char)
-				// Next character
-				char, err = r.ReadByte()
-				if err != nil {
-					panic(err)
-				}
-			}
-			// reserved words or identifier
-			tokens = append(tokens, Token{string(identifier), getTokenType(string(identifier))})
-
-		default:
-			fmt.Println("compilation error: undefined character entered")
-			return
-		}
+	// Start scanning
+	if s.Scan() {
+		tokens = s.tokens
+	} else {
+		fmt.Println("Scanning Failed.")
 	}
 
 	// Write output to file
