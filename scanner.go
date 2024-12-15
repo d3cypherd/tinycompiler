@@ -59,6 +59,14 @@ type Scanner struct {
 	LineNum int
 }
 
+func (s *Scanner) PrintTokens() string {
+	var output string
+	for _, token := range s.tokens {
+		output += fmt.Sprintf("%v, %v\n", token.Value, token.Type.String())
+	}
+	return output
+}
+
 // String method for TokenType provides readable token types for debugging
 func (t TokenType) String() string {
 	return [...]string{
@@ -66,6 +74,7 @@ func (t TokenType) String() string {
 		"EOF",
 		"IF",
 		"THEN",
+		"ELSE",
 		"END",
 		"REPEAT",
 		"UNTIL",
