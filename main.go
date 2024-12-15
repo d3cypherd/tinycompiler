@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -22,24 +24,19 @@ const (
 	PARSE
 )
 
-func testTree(diagram *diagramwidget.DiagramWidget) {
-	node0Label := widget.NewLabel("Node0")
-	node0 := diagramwidget.NewDiagramNode(diagram, node0Label, "Node0")
-	node0.Move(fyne.NewPos(400, 0))
-}
-
-func ScanFromBox(box *widget.Entry, displayBox *widget.TextGrid) {
+func ScanFromBox(box *widget.Entry, displayBox *widget.TextGrid) (bool, []string) {
 	code := box.Text
 	s := newScanner(*bufio.NewReader(strings.NewReader(code)))
 
 	if !s.Scan() {
 		fmt.Println("Scanning Failed.")
-		displayBox.SetText("Scanning Failed.")
-		return
+		displayBox.SetText(fmt.Sprintf("Scanning Failed:\n %v", s.errors))
+		return false, s.errors
 	}
 	tokens := s.PrintTokens()
 	displayBox.SetText(tokens)
 	// fmt.Print(tokens)
+	return true, []string{}
 }
 
 // ScanFromFile scans text from the uploaded file and displays tokens
@@ -58,12 +55,14 @@ func ScanFromFile(inputFile *os.File, displayBox *widget.TextGrid) {
 	displayBox.SetText(tokens)
 }
 
-func ParseAndDisplayTree(code string, widget *diagramwidget.DiagramWidget) {
+func ParseAndDisplayTree(code string, widget *diagramwidget.DiagramWidget) (bool, []string) {
+	widget.DiagramElements = list.New()
+	widget.Refresh()
 	// First scan the code
 	s := newScanner(*bufio.NewReader(strings.NewReader(code)))
 	if !s.Scan() {
-		fmt.Println("Scanning Failed.")
-		return
+		fmt.Println("Scanning Failed:\n", s.errors)
+		return false, s.errors
 	}
 
 	// Parse the tokens
@@ -72,17 +71,18 @@ func ParseAndDisplayTree(code string, widget *diagramwidget.DiagramWidget) {
 
 	if len(errors) > 0 {
 		fmt.Println("Parsing errors:", errors)
-		return
+		return false, errors
 	}
 
 	// Create and display the tree visualizer
 	NewTreeVisualizer(tree, widget)
+	return true, []string{}
 }
 
 func main() {
 	// Create the app and main window
 	myApp := app.NewWithID("com.mycompany.myapp")
-	myWindow := myApp.NewWindow("GUI with Fyne")
+	myWindow := myApp.NewWindow("tinycompiler")
 
 	// Textbox for input
 	leftEntry := widget.NewMultiLineEntry()
@@ -92,20 +92,30 @@ func main() {
 	rightTextGrid := widget.NewTextGridFromString("Tree diagram will be displayed here")
 	rightTextGrid.ShowLineNumbers = true
 
-	/* Test */
 	diagramWidget := diagramwidget.NewDiagramWidget("diagram1")
 	scrollContainer := container.NewScroll(diagramWidget)
 
-	// testTree(diagramWidget)
-	// Tree container
-	// rightContainer := container.NewWithoutLayout()
+	// Stack container to hold both components
+	dynamicContainer := container.NewStack(rightTextGrid, scrollContainer)
 
 	// Bottom buttons
 	button1 := widget.NewButton("SCAN", func() {
 		ScanFromBox(leftEntry, rightTextGrid)
+		// Show the TextGrid and hide the diagram
+		rightTextGrid.Show()
+		scrollContainer.Hide()
 	})
+
 	button2 := widget.NewButton("Parse", func() {
-		ParseAndDisplayTree(leftEntry.Text, diagramWidget)
+		if status, errors := ParseAndDisplayTree(leftEntry.Text, diagramWidget); status {
+			// Show the diagram and hide the TextGrid
+			scrollContainer.Show()
+			rightTextGrid.Hide()
+		} else {
+			rightTextGrid.SetText(fmt.Sprintf("Scanning Failed:\n %v", errors))
+			rightTextGrid.Show()
+			scrollContainer.Hide()
+		}
 	})
 
 	// File upload button logic
@@ -122,9 +132,18 @@ func main() {
 					rightTextGrid.SetText("Failed to open file.")
 					return
 				}
-				ScanFromFile(file, rightTextGrid)
+				// Read the file contents
+				data, err := io.ReadAll(file) // ReadAll reads the entire file
+				if err != nil {
+					fmt.Println("Error reading file:", err)
+					return
+				}
+				// Convert bytes to string
+				content := string(data)
+				leftEntry.SetText(content)
 			}, myWindow).Show()
 	})
+
 	// Buttons layout container
 	buttonContainer := container.NewHBox(
 		layout.NewSpacer(),
@@ -135,8 +154,9 @@ func main() {
 	)
 
 	// Split horizontally by half layout
-	splitContainer := container.NewHSplit(leftEntry, scrollContainer)
+	splitContainer := container.NewHSplit(leftEntry, dynamicContainer)
 	splitContainer.SetOffset(0.3)
+
 	// Add padding to the entire layout
 	mainContainer := container.NewBorder(
 		nil,             // No top widget

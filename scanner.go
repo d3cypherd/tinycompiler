@@ -55,6 +55,7 @@ type Token struct {
 type Scanner struct {
 	r       bufio.Reader
 	tokens  []Token
+	errors  []string
 	CharNum int
 	LineNum int
 }
@@ -257,7 +258,7 @@ func (s *Scanner) Scan() bool {
 			s.addToken(word, getTokenType(word))
 
 		default:
-			return s.error("undefined character entered")
+			return s.error("undefined character entered '" + string(char) + "'")
 		}
 	}
 	return true
@@ -265,5 +266,10 @@ func (s *Scanner) Scan() bool {
 
 func (s *Scanner) error(msg string) bool {
 	fmt.Printf("[%d:%d] compilation error: %s\n", s.LineNum, s.CharNum, msg)
+	s.errors = append(s.errors, fmt.Sprintf("[%d:%d] compilation error: %s\n", s.LineNum, s.CharNum, msg))
 	return false
+}
+
+func (s *Scanner) addError(msg string) {
+	s.errors = append(s.errors, msg)
 }
