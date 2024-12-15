@@ -57,32 +57,32 @@ func main() {
 	myWindow := myApp.NewWindow("GUI with Fyne")
 
 	// Textbox for input
-	inputBox := widget.NewMultiLineEntry()
-	inputBox.SetPlaceHolder("Enter your text here...")
-	inputBox.Resize(fyne.NewSize(200, 400)) // Set rectangle shape (height > width)
+	leftEntry := widget.NewMultiLineEntry()
+	leftEntry.SetPlaceHolder("Enter your text here...")
 
 	// Placeholder for the tree diagram
-	treeBox := widget.NewTextGridFromString("Tree diagram will be displayed here")
+	rightTextGrid := widget.NewTextGridFromString("Tree diagram will be displayed here")
+	rightTextGrid.ShowLineNumbers = true
 
 	// Horizontal box for textbox and tree diagram
-	horizontalBox := container.NewHBox(
-		container.NewGridWrap( // Left VBox for text box
-			fyne.NewSize(300, 600),
-			inputBox, // Text input
-		),
-		container.NewVBox( // Right VBox for tree diagram
-			layout.NewSpacer(),           // Space above
-			container.NewCenter(treeBox), // Tree placeholder
-			layout.NewSpacer(),           // Space below
-		),
-	)
+	// horizontalBox := container.NewHBox(
+	// 	container.NewGridWrap( // Left VBox for text box
+	// 		fyne.NewSize(300, 600),
+	// 		leftEntry, // Text input
+	// 	),
+	// 	container.NewVBox( // Right VBox for tree diagram
+	// 		layout.NewSpacer(),                 // Space above
+	// 		container.NewCenter(rightTextGrid), // Tree placeholder
+	// 		layout.NewSpacer(),                 // Space below
+	// 	),
+	// )
 
 	// Bottom buttons
 	button1 := widget.NewButton("SCAN", func() {
-		ScanFromBox(inputBox, treeBox)
+		ScanFromBox(leftEntry, rightTextGrid)
 	})
 	button2 := widget.NewButton("Button 2", func() {
-		treeBox.SetText("You pressed Button 2")
+		rightTextGrid.SetText("You pressed Button 2")
 	})
 	// File upload button logic
 	fileUploadButton := widget.NewButton("Upload File", func() {
@@ -95,12 +95,13 @@ func main() {
 				file, err := os.Open(reader.URI().Path())
 				if err != nil {
 					fmt.Println("Failed to open file:", err)
-					treeBox.SetText("Failed to open file.")
+					rightTextGrid.SetText("Failed to open file.")
 					return
 				}
-				ScanFromFile(file, treeBox)
+				ScanFromFile(file, rightTextGrid)
 			}, myWindow).Show()
 	})
+	// Buttons layout container
 	buttonContainer := container.NewHBox(
 		layout.NewSpacer(),
 		button1,
@@ -109,13 +110,16 @@ func main() {
 		layout.NewSpacer(),
 	)
 
+	// Split horizontally by half layout
+	splitContainer := container.NewHSplit(leftEntry, rightTextGrid)
+	splitContainer.SetOffset(0.5)
 	// Add padding to the entire layout
 	mainContainer := container.NewBorder(
-		nil,                                // No top widget
-		buttonContainer,                    // Buttons at the bottom
-		nil,                                // No left widget
-		nil,                                // No right widget
-		container.NewPadded(horizontalBox), // Padded horizontal box in the center
+		nil,             // No top widget
+		buttonContainer, // Buttons at the bottom
+		nil,             // No left widget
+		nil,             // No right widget
+		splitContainer,  // Padded horizontal box in the center
 	)
 
 	// Set window content and run the app
