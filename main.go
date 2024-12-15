@@ -2,222 +2,172 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"fmt"
 	"io"
 	"os"
+	"strings"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/widget"
+	"fyne.io/x/fyne/widget/diagramwidget"
 )
 
-type Token struct {
-	TokenValue string
-	TokenType  string
-}
+var SCAN_PARSE_FLAG int
 
-type Scanner struct {
-	r       bufio.Reader
-	tokens  []Token
-	charNum int
-	lineNum int
-}
+const (
+	SCAN int = iota
+	PARSE
+)
 
-func isWhitespace(c byte) bool {
-	return c == ' ' || c == '\n'
-}
+func ScanFromBox(box *widget.Entry, displayBox *widget.TextGrid) (bool, []string) {
+	code := box.Text
+	s := newScanner(*bufio.NewReader(strings.NewReader(code)))
 
-func isSingleOperator(c byte) bool {
-	return c == ';' || c == '<' || c == '>' || c == '(' || c == ')' || c == '+' || c == '-' || c == '*' || c == '/' || c == '='
-}
-
-func isAlphabet(c byte) bool {
-	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-}
-
-func isNumber(c byte) bool {
-	return c >= '0' && c <= '9'
-}
-
-func getTokenType(c string) string {
-	switch c {
-	case ";":
-		return "SEMICOLON"
-	case "<":
-		return "LESSTHAN"
-	case ">":
-		return "GREATERTHAN"
-	case "(":
-		return "OPENBRACKET"
-	case ")":
-		return "CLOSEDBRACKET"
-	case "+":
-		return "PLUS"
-	case "-":
-		return "MINUS"
-	case "*":
-		return "MULT"
-	case "/":
-		return "DIV"
-	case "=":
-		return "EQUAL"
-	case "if":
-		return "IF"
-	case "then":
-		return "THEN"
-	case "end":
-		return "END"
-	case "repeat":
-		return "REPEAT"
-	case "until":
-		return "UNTIL"
-	case "read":
-		return "READ"
-	case "write":
-		return "WRITE"
-	default:
-		return "IDENTIFIER"
+	if !s.Scan() {
+		fmt.Println("Scanning Failed.")
+		displayBox.SetText(fmt.Sprintf("Scanning Failed:\n %v", s.errors))
+		return false, s.errors
 	}
+	tokens := s.PrintTokens()
+	displayBox.SetText(tokens)
+	// fmt.Print(tokens)
+	return true, []string{}
 }
 
-func newScanner(reader bufio.Reader) *Scanner {
-	return &Scanner{
-		r:       reader,
-		charNum: 0,
-		lineNum: 1,
+// ScanFromFile scans text from the uploaded file and displays tokens
+func ScanFromFile(inputFile *os.File, displayBox *widget.TextGrid) {
+	defer inputFile.Close()
+
+	reader := bufio.NewReader(inputFile)
+	s := newScanner(*reader)
+
+	if !s.Scan() {
+		fmt.Println("Scanning Failed.")
+		displayBox.SetText("Scanning Failed.")
+		return
 	}
+	tokens := s.PrintTokens()
+	displayBox.SetText(tokens)
 }
 
-func (s *Scanner) Read() (byte, error) {
-	char, err := s.r.ReadByte()
-
-	if char == '\n' {
-		s.charNum = 1
-		s.lineNum++
+func ParseAndDisplayTree(code string, widget *diagramwidget.DiagramWidget) (bool, []string) {
+	widget.DiagramElements = list.New()
+	widget.Refresh()
+	// First scan the code
+	s := newScanner(*bufio.NewReader(strings.NewReader(code)))
+	if !s.Scan() {
+		fmt.Println("Scanning Failed:\n", s.errors)
+		return false, s.errors
 	}
 
-	s.charNum++
-	return char, err
-}
+	// Parse the tokens
+	parser := NewParser(s.tokens)
+	tree, errors := parser.Parse()
 
-func (s *Scanner) Scan() bool {
-	char, err := s.Read()
-	if err != nil {
-		panic(err)
+	if len(errors) > 0 {
+		fmt.Println("Parsing errors:", errors)
+		return false, errors
 	}
 
-	for {
-		if err != nil {
-			if err == io.EOF {
-				break // Exit the loop when the end of the file is reached
-			}
-			panic(err)
-		}
-		switch {
-		case isWhitespace(char):
-			char, err = s.Read()
-			continue
-
-		case char == '{':
-			for char != '}' {
-				char, err = s.Read()
-				if err != nil {
-					if err == io.EOF {
-						panic(fmt.Sprintf("%d:%d: unmatched '{'", s.lineNum, s.charNum))
-					}
-					panic(err)
-				}
-			}
-			// Read next character after '}'
-			char, err = s.Read()
-
-		case isSingleOperator(char):
-			s.tokens = append(s.tokens, Token{string(char), getTokenType(string(char))})
-			char, err = s.Read()
-
-		case char == ':':
-			char, err = s.Read()
-			if err != nil {
-				panic(err)
-			}
-			if char == '=' {
-				s.tokens = append(s.tokens, Token{":=", "ASSIGN"})
-				char, err = s.Read()
-			} else {
-				fmt.Printf("%d:%dcompilation error (ASSIGN): ':' not followed by '='.\n", s.lineNum, s.charNum)
-				return false
-			}
-
-		case isNumber(char):
-			var number []byte
-			for isNumber(char) {
-				number = append(number, char)
-				char, err = s.Read()
-				if err != nil {
-					panic(err)
-				}
-			}
-			s.tokens = append(s.tokens, Token{string(number), "NUMBER"})
-
-		case isAlphabet(char):
-			var identifier []byte
-			for isAlphabet(char) {
-				identifier = append(identifier, char)
-				// Next character
-				char, err = s.Read()
-				if err != nil {
-					panic(err)
-				}
-			}
-			// reserved words or identifier
-			s.tokens = append(s.tokens, Token{string(identifier), getTokenType(string(identifier))})
-
-		default:
-			// fmt.Println(s.lineNum, ":", s.charNum, "compilation error: undefined character entered")
-			fmt.Printf("%d:%d compilation error: undefined character entered.\n", s.lineNum, s.charNum)
-			return false
-		}
-	}
-	return true
+	// Create and display the tree visualizer
+	NewTreeVisualizer(tree, widget)
+	return true, []string{}
 }
 
 func main() {
-	// Example: ./main code.txt
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: ./main <input-filename> <output-filename>")
-		return
-	}
+	// Create the app and main window
+	myApp := app.NewWithID("com.mycompany.myapp")
+	myWindow := myApp.NewWindow("tinycompiler")
 
-	inputFile, err := os.Open(os.Args[1])
-	if err != nil {
-		panic(err)
-	}
-	defer inputFile.Close()
+	// Textbox for input
+	leftEntry := widget.NewMultiLineEntry()
+	leftEntry.SetPlaceHolder("Enter your text here...")
 
-	var tokens []Token
+	// Placeholder for the tree diagram
+	rightTextGrid := widget.NewTextGridFromString("Tree diagram will be displayed here")
+	rightTextGrid.ShowLineNumbers = true
 
-	// Create Scanner Object
-	s := newScanner(*bufio.NewReader(inputFile))
+	diagramWidget := diagramwidget.NewDiagramWidget("diagram1")
+	scrollContainer := container.NewScroll(diagramWidget)
 
-	// Start scanning
-	if s.Scan() {
-		tokens = s.tokens
-	} else {
-		fmt.Println("Scanning Failed.")
-	}
+	// Stack container to hold both components
+	dynamicContainer := container.NewStack(rightTextGrid, scrollContainer)
 
-	// Write output to file
-	outputFile, err := os.Create(os.Args[2])
-	if err != nil {
-		panic(err)
-	}
-	defer outputFile.Close()
+	// Bottom buttons
+	button1 := widget.NewButton("SCAN", func() {
+		ScanFromBox(leftEntry, rightTextGrid)
+		// Show the TextGrid and hide the diagram
+		rightTextGrid.Show()
+		scrollContainer.Hide()
+	})
 
-	c := bufio.NewWriter(outputFile)
-
-	for _, token := range tokens {
-		_, err := c.WriteString(fmt.Sprintf("%v, %v\n", token.TokenValue, token.TokenType))
-		if err != nil {
-			panic(err)
+	button2 := widget.NewButton("Parse", func() {
+		if status, errors := ParseAndDisplayTree(leftEntry.Text, diagramWidget); status {
+			// Show the diagram and hide the TextGrid
+			scrollContainer.Show()
+			rightTextGrid.Hide()
+		} else {
+			rightTextGrid.SetText(fmt.Sprintf("Scanning Failed:\n %v", errors))
+			rightTextGrid.Show()
+			scrollContainer.Hide()
 		}
-		fmt.Printf("%v, %v\n", token.TokenValue, token.TokenType)
-	}
-	// Write buffer to file
-	c.Flush()
+	})
+
+	// File upload button logic
+	fileUploadButton := widget.NewButton("Upload File", func() {
+		dialog.NewFileOpen(
+			func(reader fyne.URIReadCloser, err error) {
+				if err != nil || reader == nil {
+					return // Handle cancel or error gracefully
+				}
+
+				file, err := os.Open(reader.URI().Path())
+				if err != nil {
+					fmt.Println("Failed to open file:", err)
+					rightTextGrid.SetText("Failed to open file.")
+					return
+				}
+				// Read the file contents
+				data, err := io.ReadAll(file) // ReadAll reads the entire file
+				if err != nil {
+					fmt.Println("Error reading file:", err)
+					return
+				}
+				// Convert bytes to string
+				content := string(data)
+				leftEntry.SetText(content)
+			}, myWindow).Show()
+	})
+
+	// Buttons layout container
+	buttonContainer := container.NewHBox(
+		layout.NewSpacer(),
+		button1,
+		fileUploadButton,
+		button2,
+		layout.NewSpacer(),
+	)
+
+	// Split horizontally by half layout
+	splitContainer := container.NewHSplit(leftEntry, dynamicContainer)
+	splitContainer.SetOffset(0.3)
+
+	// Add padding to the entire layout
+	mainContainer := container.NewBorder(
+		nil,             // No top widget
+		buttonContainer, // Buttons at the bottom
+		nil,             // No left widget
+		nil,             // No right widget
+		splitContainer,  // Padded horizontal box in the center
+	)
+
+	// Set window content and run the app
+	myWindow.SetContent(mainContainer)
+	myWindow.Resize(fyne.NewSize(1200, 900))
+	myWindow.ShowAndRun()
 }
