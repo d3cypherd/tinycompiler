@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"fyne.io/x/fyne/widget/diagramwidget"
 )
 
 var SCAN_PARSE_FLAG int
@@ -20,6 +21,12 @@ const (
 	SCAN int = iota
 	PARSE
 )
+
+func testTree(diagram *diagramwidget.DiagramWidget) {
+	node0Label := widget.NewLabel("Node0")
+	node0 := diagramwidget.NewDiagramNode(diagram, node0Label, "Node0")
+	node0.Move(fyne.NewPos(400, 0))
+}
 
 func ScanFromBox(box *widget.Entry, displayBox *widget.TextGrid) {
 	code := box.Text
@@ -51,6 +58,27 @@ func ScanFromFile(inputFile *os.File, displayBox *widget.TextGrid) {
 	displayBox.SetText(tokens)
 }
 
+func ParseAndDisplayTree(code string, widget *diagramwidget.DiagramWidget) {
+	// First scan the code
+	s := newScanner(*bufio.NewReader(strings.NewReader(code)))
+	if !s.Scan() {
+		fmt.Println("Scanning Failed.")
+		return
+	}
+
+	// Parse the tokens
+	parser := NewParser(s.tokens)
+	tree, errors := parser.Parse()
+
+	if len(errors) > 0 {
+		fmt.Println("Parsing errors:", errors)
+		return
+	}
+
+	// Create and display the tree visualizer
+	NewTreeVisualizer(tree, widget)
+}
+
 func main() {
 	// Create the app and main window
 	myApp := app.NewWithID("com.mycompany.myapp")
@@ -64,26 +92,22 @@ func main() {
 	rightTextGrid := widget.NewTextGridFromString("Tree diagram will be displayed here")
 	rightTextGrid.ShowLineNumbers = true
 
-	// Horizontal box for textbox and tree diagram
-	// horizontalBox := container.NewHBox(
-	// 	container.NewGridWrap( // Left VBox for text box
-	// 		fyne.NewSize(300, 600),
-	// 		leftEntry, // Text input
-	// 	),
-	// 	container.NewVBox( // Right VBox for tree diagram
-	// 		layout.NewSpacer(),                 // Space above
-	// 		container.NewCenter(rightTextGrid), // Tree placeholder
-	// 		layout.NewSpacer(),                 // Space below
-	// 	),
-	// )
+	/* Test */
+	diagramWidget := diagramwidget.NewDiagramWidget("diagram1")
+	scrollContainer := container.NewScroll(diagramWidget)
+
+	// testTree(diagramWidget)
+	// Tree container
+	// rightContainer := container.NewWithoutLayout()
 
 	// Bottom buttons
 	button1 := widget.NewButton("SCAN", func() {
 		ScanFromBox(leftEntry, rightTextGrid)
 	})
-	button2 := widget.NewButton("Button 2", func() {
-		rightTextGrid.SetText("You pressed Button 2")
+	button2 := widget.NewButton("Parse", func() {
+		ParseAndDisplayTree(leftEntry.Text, diagramWidget)
 	})
+
 	// File upload button logic
 	fileUploadButton := widget.NewButton("Upload File", func() {
 		dialog.NewFileOpen(
@@ -111,8 +135,8 @@ func main() {
 	)
 
 	// Split horizontally by half layout
-	splitContainer := container.NewHSplit(leftEntry, rightTextGrid)
-	splitContainer.SetOffset(0.5)
+	splitContainer := container.NewHSplit(leftEntry, scrollContainer)
+	splitContainer.SetOffset(0.3)
 	// Add padding to the entire layout
 	mainContainer := container.NewBorder(
 		nil,             // No top widget
@@ -124,6 +148,6 @@ func main() {
 
 	// Set window content and run the app
 	myWindow.SetContent(mainContainer)
-	myWindow.Resize(fyne.NewSize(800, 600))
+	myWindow.Resize(fyne.NewSize(1200, 900))
 	myWindow.ShowAndRun()
 }

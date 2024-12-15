@@ -60,3 +60,13 @@ func PrintExpNode(node *TreeNode) {
 		fmt.Printf("Id: %s", node.Name)
 	}
 }
+
+func getNumChildNodes(node *TreeNode) int {
+	var count int
+	for i := 0; i < 3; i++ {
+		if node.Children[i] != nil {
+			count++
+		}
+	}
+	return count
+}

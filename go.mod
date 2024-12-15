@@ -4,9 +4,12 @@ go 1.23.3
 
 require fyne.io/fyne v1.4.3
 
+require github.com/twpayne/go-geom v1.0.0 // indirect
+
 require (
 	fyne.io/fyne/v2 v2.5.2 // indirect
 	fyne.io/systray v1.11.0 // indirect
+	fyne.io/x/fyne v0.0.0-20240803204126-8b5b5bfe65ef
 	github.com/BurntSushi/toml v1.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fredbi/uri v1.1.0 // indirect
