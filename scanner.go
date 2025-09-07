@@ -28,7 +28,6 @@ const (
 	// Special symbols
 	SEMICOLON     // ;
 	LESSTHAN      // <
-	GREATERTHAN   // >
 	OPENBRACKET   // (
 	CLOSEDBRACKET // )
 	PLUS          // +
@@ -83,7 +82,6 @@ func (t TokenType) String() string {
 		"WRITE",
 		"SEMICOLON",
 		"LESSTHAN",
-		"GREATERTHAN",
 		"OPENBRACKET",
 		"CLOSEDBRACKET",
 		"PLUS",
@@ -121,6 +119,7 @@ func getTokenType(c string) TokenType {
 	reservedWords := map[string]TokenType{
 		"if":     IF,
 		"then":   THEN,
+		"else":   ELSE,
 		"end":    END,
 		"repeat": REPEAT,
 		"until":  UNTIL,
@@ -137,7 +136,6 @@ func getTokenType(c string) TokenType {
 	singleOperators := map[string]TokenType{
 		";": SEMICOLON,
 		"<": LESSTHAN,
-		">": GREATERTHAN,
 		"(": OPENBRACKET,
 		")": CLOSEDBRACKET,
 		"+": PLUS,

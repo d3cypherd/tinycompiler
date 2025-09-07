@@ -112,7 +112,7 @@ func main() {
 			scrollContainer.Show()
 			rightTextGrid.Hide()
 		} else {
-			rightTextGrid.SetText(fmt.Sprintf("Scanning Failed:\n %v", errors))
+			rightTextGrid.SetText(fmt.Sprintf("Parsing Failed:\n %v\n", errors))
 			rightTextGrid.Show()
 			scrollContainer.Hide()
 		}
