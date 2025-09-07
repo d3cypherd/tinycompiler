@@ -67,8 +67,8 @@ func NewParser(tokens []Token) *Parser {
 // program = stmt-sequence
 func (p *Parser) Parse() (*TreeNode, []string) {
 	tree := p.parseStmtSequence()
-	if p.current < len(p.tokens)-1 { // -1 for EOF token
-		p.addError("Extra tokens after program end")
+	if p.current < len(p.tokens) { // -1 for EOF token
+		p.addError("Extra tokens after program end\n")
 	}
 	return tree, p.errors
 }
@@ -110,7 +110,7 @@ func (p *Parser) parseStatement() *TreeNode {
 	case WRITE:
 		return p.parseWriteStmt()
 	default:
-		p.addError(fmt.Sprintf("Unexpected token: %v at line %d",
+		p.addError(fmt.Sprintf("Unexpected token: %v at line %d\n",
 			p.currentToken().Value, p.currentToken().LineNum))
 		return nil
 	}
@@ -291,7 +291,7 @@ func (p *Parser) parseFactor() *TreeNode {
 		p.advance()
 
 	default:
-		p.addError(fmt.Sprintf("Unexpected token in factor: %v at line %d",
+		p.addError(fmt.Sprintf("Unexpected token in factor: %v at line %d\n",
 			p.currentToken().Value, p.currentToken().LineNum))
 	}
 
@@ -312,7 +312,7 @@ func (p *Parser) match(expected TokenType) bool {
 		p.advance()
 		return true
 	}
-	p.addError(fmt.Sprintf("Expected %v but got %v at line %d",
+	p.addError(fmt.Sprintf("Expected %v but got %v at line %d\n",
 		expected.String(), p.currentToken().Type.String(), p.currentToken().LineNum))
 	return false
 }
@@ -328,14 +328,14 @@ func (p *Parser) addError(msg string) {
 func (p *Parser) parseNumber(s string) int {
 	n, err := strconv.Atoi(s)
 	if err != nil {
-		p.addError(fmt.Sprintf("Invalid number: %s", s))
+		p.addError(fmt.Sprintf("Invalid number: %s\n", s))
 		return 0
 	}
 	return n
 }
 
 func (p *Parser) isComparisonOp(t TokenType) bool {
-	return t == LESSTHAN || t == GREATERTHAN || t == EQUAL
+	return t == LESSTHAN || t == EQUAL
 }
 
 func (p *Parser) isAddOp(t TokenType) bool {

@@ -37,7 +37,7 @@ func (v *TreeVisualizer) CreateRenderer() fyne.WidgetRenderer {
 func (v *TreeVisualizer) createDiagram() {
 	// Create all nodes first
 	levelOffsets := make(map[int]float32)
-	v.createNodes(v.tree, 0, 0, 20, 0, levelOffsets)
+	v.createNodes(v.tree, 0, 0, 80, 0, levelOffsets)
 
 	// Then create all links
 	v.createLinks(v.tree)
@@ -62,14 +62,19 @@ func (v *TreeVisualizer) createNodes(node *TreeNode, level, index int, xPos, yPo
 	if xPos < levelOffsets[level] {
 		xPos = levelOffsets[level]
 	}
-	levelOffsets[level] = xPos + 150 // Update level offset with spacing for the next node
+	levelOffsets[level] = xPos + 200 // Update level offset with spacing for the next node
 
 	// Create label content based on node type
 	labelText := v.getNodeLabel(node)
 	label := widget.NewLabel(labelText)
+	label.Alignment = fyne.TextAlignCenter
 
 	// Create diagram node
 	diagNode := diagramwidget.NewDiagramNode(v.diagram, label, fmt.Sprintf("node-%p", node))
+	// Set to red color if Leaf node
+	if node.ExpKind == ConstK || node.ExpKind == IdK {
+		diagNode.SetForegroundColor(color.RGBA{255, 0, 0, 255})
+	}
 	v.nodes[node] = &diagNode
 
 	diagNode.Move(fyne.NewPos(xPos, yPos))

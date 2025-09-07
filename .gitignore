@@ -1,0 +1,6 @@
+*.txt
+*.pdf
+.editorconfig
+.DS_Store
+assets/
+
